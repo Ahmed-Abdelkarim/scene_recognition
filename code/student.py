@@ -9,6 +9,7 @@ from scipy.stats import mode
 from sklearn.svm import LinearSVC
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import MiniBatchKMeans
 
 def get_tiny_images(image_paths):
     """
@@ -117,10 +118,21 @@ def build_vocabulary(image_paths, vocab_size):
     may also find success setting the "tol" argument (see documentation for
     details)
     """
-
+    z = 2
+    orientations = 8
+    p_cell = 2
+    input_shape = (128, 128)
     # TODO: Implement this function!
+    print("Getting training data ...")
+    train_data = np.empty_like(np.zeros((1, z*z*8)))
+    for path in image_paths:
+        fd = hog(imread(path, as_gray = True),orientations=orientations,pixels_per_cell=(p_cell, p_cell), cells_per_block=(z, z), feature_vector=True).reshape(-1, z*z*orientations)
+        train_data = np.vstack((train_data, fd))
+    
+    print("kmeans clustering the data ...")
+    kmeans = MiniBatchKMeans(n_clusters=vocab_size, random_state=0,batch_size=100, max_iter=100).fit(train_data)
 
-    return np.array([])
+    return kmeans.cluster_centers_
 
 
 def get_bags_of_words(image_paths):
