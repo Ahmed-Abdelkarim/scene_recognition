@@ -123,13 +123,20 @@ def projSceneRecBoW(feature='placeholder', classifier='placeholder'):
             np.save('vocab.npy', vocab)
 
         # YOU CODE get_bags_of_words.m (see student.py)
-        train_image_feats = get_bags_of_words(train_image_paths)
+        if not os.path.isfile('train_image_feats.npy'):
+            train_image_feats = get_bags_of_words(train_image_paths)
         # You may want to write out train_image_features here as a *.npy and
         # load it up later if you want to just test your classifiers without
         # re-computing features
-
-        test_image_feats = get_bags_of_words(test_image_paths)
+            np.save('train_image_feats.npy', train_image_feats)
+        else:
+            train_image_feats = np.load('train_image_feats.npy')
+        if not os.path.isfile('test_image_feats.npy'):
+            test_image_feats = get_bags_of_words(test_image_paths)
         # Same goes here for test image features.
+            np.save('test_image_feats.npy', test_image_feats)
+        else:
+            test_image_feats = np.load('test_image_feats.npy')
 
     elif FEATURE.lower() == 'placeholder':
         train_image_feats = []

@@ -1,14 +1,17 @@
 import numpy as np
 import matplotlib
+import cv2
 from skimage.io import imread
-from skimage.color import rgb2grey
+from skimage.io import imread_collection
+from skimage.color import rgb2gray
 from skimage.feature import hog
 from skimage.transform import resize
 from scipy.spatial.distance import cdist
 from scipy.stats import mode
 from sklearn.svm import LinearSVC
+from sklearn.svm import SVC
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import Normalizer
 from sklearn.cluster import MiniBatchKMeans
 
 def get_tiny_images(image_paths):
@@ -118,16 +121,20 @@ def build_vocabulary(image_paths, vocab_size):
     may also find success setting the "tol" argument (see documentation for
     details)
     """
-    z = 2
-    orientations = 8
-    p_cell = 2
-    input_shape = (128, 128)
+    z = 4
+    orientations = 9
+    p_cell = 4
+    input_shape = (200, 200)
     # TODO: Implement this function!
     print("Getting training data ...")
-    train_data = np.empty_like(np.zeros((1, z*z*8)))
-    for path in image_paths:
-        fd = hog(imread(path, as_gray = True),orientations=orientations,pixels_per_cell=(p_cell, p_cell), cells_per_block=(z, z), feature_vector=True).reshape(-1, z*z*orientations)
-        train_data = np.vstack((train_data, fd))
+    images = imread_collection(image_paths, conserve_memory =True)
+    train_data = np.empty_like(np.zeros((1, z*z*orientations)))
+    rng = np.random.default_rng()
+    for img in images:
+        fd = hog(resize(img, input_shape, anti_aliasing=True),orientations=orientations,pixels_per_cell=(p_cell, p_cell), cells_per_block=(z, z), feature_vector=True).reshape(-1, z*z*orientations)
+        fdn = rng.choice(fd, 500, replace=False, axis = 0)
+        del fd
+        train_data = np.concatenate((train_data, fdn))
     
     print("kmeans clustering the data ...")
     kmeans = MiniBatchKMeans(n_clusters=vocab_size, random_state=0,batch_size=100, max_iter=100).fit(train_data)
@@ -167,10 +174,27 @@ def get_bags_of_words(image_paths):
 
     vocab = np.load('vocab.npy')
     print('Loaded vocab from file.')
-
+    input_shape = (200,200)
+    orientations = 9
+    z = 4
+    p_cell = 4
     # TODO: Implement this function!
+    images = imread_collection(image_paths, conserve_memory =True)
+    #features = np.empty_like(np.zeros((1, z*z*8)))
+    features = []
+    rng = np.random.default_rng()
+    for img in images:
+        fd = hog(resize(img, input_shape, anti_aliasing=True),orientations=orientations,pixels_per_cell=(p_cell, p_cell), cells_per_block=(z, z), feature_vector=True).reshape(-1, z*z*orientations)
+        fdn = rng.choice(fd, 500, replace=False, axis = 0)
+        #features = np.vstack((features, fdn))
+        features.append(fdn)
+    del images
+    min_distances = [np.argsort(cdist(f, vocab, 'euclidean'))[:, 0] for f in features] # image number x 200 
+    del features
+    
+    hist = [np.histogram(dist, bins =200)[0]/np.linalg.norm(np.histogram(dist, bins =200)[0]) for dist in min_distances]
 
-    return np.array([])
+    return hist
 
 
 def svm_classify(train_image_feats, train_labels, test_image_feats):
@@ -197,7 +221,7 @@ def svm_classify(train_image_feats, train_labels, test_image_feats):
     """
 
     # TODO: Implement this function!
-    clf = make_pipeline(StandardScaler(), LinearSVC(random_state=0, tol=1e-5))
+    clf = make_pipeline(SVC(kernel = 'poly', degree = 2))
     clf.fit(train_image_feats, train_labels)
     return clf.predict(test_image_feats)
 
@@ -241,11 +265,11 @@ def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)
         scipy.spatial.distance.cdist, np.argsort, scipy.stats.mode
     """
 
-    k = 1
+    k = 11
 
     # Gets the distance between each test image feature and each train image feature
     # e.g., cdist
-    distances = cdist(test_image_feats, train_image_feats, 'euclidean')
+    distances = cdist(test_image_feats, train_image_feats, 'cityblock')
 
     # TODO:
     # 1) Find the k closest features to each test image feature in euclidean space
